@@ -1,9 +1,8 @@
 using System.Web.Http;
-using WebActivatorEx;
 using ZKTecoApi;
-using Swashbuckle.Application;
 using System.IO;
 using System;
+using System.Web;
 
 [assembly: PreApplicationStartMethod(typeof(SwaggerConfig), "Register")]
 
