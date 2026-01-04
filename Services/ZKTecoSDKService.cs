@@ -1,42 +1,70 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using zkemkeeper;
 using ZKTecoApi.DTOs.Request;
 using ZKTecoApi.DTOs.Response;
 
 namespace ZKTecoApi.Services
 {
-    public class ZKTecoSDKService : IZKTecoSDKService
+    public class ZKTecoSDKService : IZKTecoSDKService, IDisposable
     {
-        // TODO: Add zkemkeeper.CZKEMClass reference when ZKTeco SDK is available
-        // private zkemkeeper.CZKEMClass _device;
+        private CZKEM _zkDevice;
+        private bool _isConnected = false;
+        private readonly int _machineNumber = 1;
+        private readonly object _lockObject = new object();
 
         public ZKTecoSDKService()
         {
-            // TODO: Initialize ZKTeco SDK
-            // _device = new zkemkeeper.CZKEMClass();
+            _zkDevice = new CZKEMClass();
         }
 
         #region Connection Management
 
         public bool Connect(string ipAddress, int port)
         {
-            // TODO: Implement connection logic
-            // return _device.Connect_Net(ipAddress, port);
-            throw new NotImplementedException("ZKTeco SDK integration pending");
+            lock (_lockObject)
+            {
+                try
+                {
+                    if (_isConnected)
+                    {
+                        _zkDevice.Disconnect();
+                    }
+
+                    _isConnected = _zkDevice.Connect_Net(ipAddress, port);
+                    return _isConnected;
+                }
+                catch (Exception)
+                {
+                    _isConnected = false;
+                    return false;
+                }
+            }
         }
 
         public void Disconnect()
         {
-            // TODO: Implement disconnect logic
-            // _device.Disconnect();
-            throw new NotImplementedException("ZKTeco SDK integration pending");
+            lock (_lockObject)
+            {
+                try
+                {
+                    if (_isConnected && _zkDevice != null)
+                    {
+                        _zkDevice.Disconnect();
+                        _isConnected = false;
+                    }
+                }
+                catch
+                {
+                    _isConnected = false;
+                }
+            }
         }
 
         public bool IsConnected()
         {
-            // TODO: Implement connection check
-            // return _device.PullSDKData != null;
-            throw new NotImplementedException("ZKTeco SDK integration pending");
+            return _isConnected;
         }
 
         #endregion
@@ -45,58 +73,91 @@ namespace ZKTecoApi.Services
 
         public DeviceStatusResponse GetDeviceStatus(string ipAddress, int port)
         {
-            // TODO: Implement device status retrieval
-            throw new NotImplementedException("ZKTeco SDK integration pending");
+            lock (_lockObject)
+            {
+                try
+                {
+                    if (!Connect(ipAddress, port))
+                    {
+                        return null;
+                    }
+
+                    var response = new DeviceStatusResponse
+                    {
+                        IpAddress = ipAddress,
+                        Port = port,
+                        IsConnected = true,
+                        SerialNumber = GetSerialNumber(),
+                        FirmwareVersion = GetFirmwareVersion(),
+                        Platform = GetPlatform(),
+                        DeviceModel = GetDeviceModel(),
+                        UserCount = GetUserCount(),
+                        LogCount = GetLogCount(),
+                        UserCapacity = GetUserCapacity(),
+                        LogCapacity = GetLogCapacity(),
+                        DeviceTime = GetDeviceTime(),
+                        IsEnabled = true
+                    };
+
+                    Disconnect();
+                    return response;
+                }
+                catch (Exception ex)
+                {
+                    Disconnect();
+                    throw new Exception($"Device status error: {ex.Message}", ex);
+                }
+            }
         }
 
         public string GetSerialNumber()
         {
-            // TODO: Implement serial number retrieval
-            // string serialNumber = "";
-            // _device.GetSerialNumber(1, out serialNumber);
-            // return serialNumber;
-            throw new NotImplementedException("ZKTeco SDK integration pending");
+            string serialNumber = "";
+            _zkDevice.GetSerialNumber(_machineNumber, out serialNumber);
+            return serialNumber ?? "Unknown";
         }
 
         public string GetFirmwareVersion()
         {
-            // TODO: Implement firmware version retrieval
-            // string firmwareVersion = "";
-            // _device.GetFirmwareVersion(1, ref firmwareVersion);
-            // return firmwareVersion;
-            throw new NotImplementedException("ZKTeco SDK integration pending");
+            string firmwareVersion = "";
+            _zkDevice.GetFirmwareVersion(_machineNumber, ref firmwareVersion);
+            return firmwareVersion ?? "Unknown";
         }
 
         public string GetPlatform()
         {
-            // TODO: Implement platform retrieval
-            // string platform = "";
-            // _device.GetPlatform(1, ref platform);
-            // return platform;
-            throw new NotImplementedException("ZKTeco SDK integration pending");
+            string platform = "";
+            _zkDevice.GetPlatform(_machineNumber, ref platform);
+            return platform ?? "Unknown";
         }
 
         public string GetDeviceModel()
         {
-            // TODO: Implement device model retrieval
-            throw new NotImplementedException("ZKTeco SDK integration pending");
+            string model = "";
+            _zkDevice.GetDeviceInfo(_machineNumber, 1, ref model);
+            return model ?? "Unknown";
         }
 
         public DateTime GetDeviceTime()
         {
-            // TODO: Implement device time retrieval
-            // int year = 0, month = 0, day = 0, hour = 0, minute = 0, second = 0;
-            // _device.GetDeviceTime(1, ref year, ref month, ref day, ref hour, ref minute, ref second);
-            // return new DateTime(year, month, day, hour, minute, second);
-            throw new NotImplementedException("ZKTeco SDK integration pending");
+            int year = 0, month = 0, day = 0, hour = 0, minute = 0, second = 0;
+            _zkDevice.GetDeviceTime(_machineNumber, ref year, ref month, ref day, ref hour, ref minute, ref second);
+
+            try
+            {
+                return new DateTime(year, month, day, hour, minute, second);
+            }
+            catch
+            {
+                return DateTime.Now;
+            }
         }
 
         public bool SetDeviceTime(DateTime dateTime)
         {
-            // TODO: Implement device time setting
-            // return _device.SetDeviceTime2(1, dateTime.Year, dateTime.Month, dateTime.Day,
-            //                               dateTime.Hour, dateTime.Minute, dateTime.Second);
-            throw new NotImplementedException("ZKTeco SDK integration pending");
+            return _zkDevice.SetDeviceTime2(_machineNumber,
+                dateTime.Year, dateTime.Month, dateTime.Day,
+                dateTime.Hour, dateTime.Minute, dateTime.Second);
         }
 
         #endregion
@@ -105,38 +166,30 @@ namespace ZKTecoApi.Services
 
         public int GetUserCapacity()
         {
-            // TODO: Implement user capacity retrieval
-            // string capacity = "";
-            // _device.GetDeviceInfo(1, 4, ref capacity);
-            // return int.Parse(capacity);
-            throw new NotImplementedException("ZKTeco SDK integration pending");
+            string capacity = "";
+            _zkDevice.GetDeviceInfo(_machineNumber, 4, ref capacity);
+            return int.TryParse(capacity, out int result) ? result : 0;
         }
 
         public int GetLogCapacity()
         {
-            // TODO: Implement log capacity retrieval
-            // string capacity = "";
-            // _device.GetDeviceInfo(1, 5, ref capacity);
-            // return int.Parse(capacity);
-            throw new NotImplementedException("ZKTeco SDK integration pending");
+            string capacity = "";
+            _zkDevice.GetDeviceInfo(_machineNumber, 5, ref capacity);
+            return int.TryParse(capacity, out int result) ? result : 0;
         }
 
         public int GetUserCount()
         {
-            // TODO: Implement user count retrieval
-            // string count = "";
-            // _device.GetDeviceInfo(1, 2, ref count);
-            // return int.Parse(count);
-            throw new NotImplementedException("ZKTeco SDK integration pending");
+            string count = "";
+            _zkDevice.GetDeviceInfo(_machineNumber, 2, ref count);
+            return int.TryParse(count, out int result) ? result : 0;
         }
 
         public int GetLogCount()
         {
-            // TODO: Implement log count retrieval
-            // string count = "";
-            // _device.GetDeviceInfo(1, 8, ref count);
-            // return int.Parse(count);
-            throw new NotImplementedException("ZKTeco SDK integration pending");
+            string count = "";
+            _zkDevice.GetDeviceInfo(_machineNumber, 8, ref count);
+            return int.TryParse(count, out int result) ? result : 0;
         }
 
         #endregion
@@ -145,50 +198,203 @@ namespace ZKTecoApi.Services
 
         public List<UserInfoResponse> GetAllUsers()
         {
-            // TODO: Implement get all users logic
-            // var users = new List<UserInfoResponse>();
-            // _device.ReadAllUserID(1);
-            // while (_device.SSR_GetAllUserInfo(1, out string enrollNumber, out string name,
-            //        out string password, out int privilege, out bool enabled))
-            // {
-            //     users.Add(new UserInfoResponse { ... });
-            // }
-            // return users;
-            throw new NotImplementedException("ZKTeco SDK integration pending");
+            var users = new List<UserInfoResponse>();
+
+            try
+            {
+                _zkDevice.EnableDevice(_machineNumber, false);
+                _zkDevice.ReadAllUserID(_machineNumber);
+
+                string enrollNumber = "";
+                string name = "";
+                string password = "";
+                int privilege = 0;
+                bool enabled = true;
+
+                while (_zkDevice.SSR_GetAllUserInfo(_machineNumber, out enrollNumber, out name,
+                    out password, out privilege, out enabled))
+                {
+                    long cardNumber = 0;
+                    _zkDevice.GetStrCardNumber(out string cardNumberStr);
+                    long.TryParse(cardNumberStr, out cardNumber);
+
+                    users.Add(new UserInfoResponse
+                    {
+                        EnrollNumber = enrollNumber,
+                        Name = name,
+                        Password = password,
+                        CardNumber = cardNumber > 0 ? cardNumber : (long?)null,
+                        Privilege = privilege,
+                        Enabled = enabled
+                    });
+                }
+
+                _zkDevice.EnableDevice(_machineNumber, true);
+                return users;
+            }
+            catch (Exception ex)
+            {
+                _zkDevice.EnableDevice(_machineNumber, true);
+                throw new Exception($"Get all users error: {ex.Message}", ex);
+            }
         }
 
         public UserInfoResponse GetUser(string enrollNumber)
         {
-            // TODO: Implement get user logic
-            throw new NotImplementedException("ZKTeco SDK integration pending");
+            try
+            {
+                _zkDevice.EnableDevice(_machineNumber, false);
+
+                string name = "";
+                string password = "";
+                int privilege = 0;
+                bool enabled = true;
+
+                if (_zkDevice.SSR_GetUserInfo(_machineNumber, enrollNumber, out name,
+                    out password, out privilege, out enabled))
+                {
+                    long cardNumber = 0;
+                    _zkDevice.GetStrCardNumber(out string cardNumberStr);
+                    long.TryParse(cardNumberStr, out cardNumber);
+
+                    _zkDevice.EnableDevice(_machineNumber, true);
+
+                    return new UserInfoResponse
+                    {
+                        EnrollNumber = enrollNumber,
+                        Name = name,
+                        Password = password,
+                        CardNumber = cardNumber > 0 ? cardNumber : (long?)null,
+                        Privilege = privilege,
+                        Enabled = enabled
+                    };
+                }
+
+                _zkDevice.EnableDevice(_machineNumber, true);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _zkDevice.EnableDevice(_machineNumber, true);
+                throw new Exception($"Get user error: {ex.Message}", ex);
+            }
         }
 
         public bool CreateUser(UserCreateRequest request)
         {
-            // TODO: Implement user creation
-            // return _device.SSR_SetUserInfo(1, request.EnrollNumber, request.Name,
-            //                                request.Password, request.Privilege, request.Enabled);
-            throw new NotImplementedException("ZKTeco SDK integration pending");
+            try
+            {
+                _zkDevice.EnableDevice(_machineNumber, false);
+
+                bool result = _zkDevice.SSR_SetUserInfo(_machineNumber,
+                    request.EnrollNumber,
+                    request.Name,
+                    request.Password ?? "",
+                    request.Privilege,
+                    request.Enabled);
+
+                if (result && request.CardNumber.HasValue)
+                {
+                    _zkDevice.SetStrCardNumber(request.CardNumber.Value.ToString());
+                }
+
+                _zkDevice.RefreshData(_machineNumber);
+                _zkDevice.EnableDevice(_machineNumber, true);
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _zkDevice.EnableDevice(_machineNumber, true);
+                throw new Exception($"Create user error: {ex.Message}", ex);
+            }
         }
 
         public bool UpdateUser(string enrollNumber, UserUpdateRequest request)
         {
-            // TODO: Implement user update
-            throw new NotImplementedException("ZKTeco SDK integration pending");
+            try
+            {
+                _zkDevice.EnableDevice(_machineNumber, false);
+
+                // Önce mevcut kullanıcıyı al
+                string existingName = "";
+                string existingPassword = "";
+                int existingPrivilege = 0;
+                bool existingEnabled = true;
+
+                if (!_zkDevice.SSR_GetUserInfo(_machineNumber, enrollNumber, out existingName,
+                    out existingPassword, out existingPrivilege, out existingEnabled))
+                {
+                    _zkDevice.EnableDevice(_machineNumber, true);
+                    return false;
+                }
+
+                // Yeni değerleri uygula
+                string newName = request.Name ?? existingName;
+                string newPassword = request.Password ?? existingPassword;
+                int newPrivilege = request.Privilege ?? existingPrivilege;
+                bool newEnabled = request.Enabled ?? existingEnabled;
+
+                bool result = _zkDevice.SSR_SetUserInfo(_machineNumber,
+                    enrollNumber, newName, newPassword, newPrivilege, newEnabled);
+
+                if (result && request.CardNumber.HasValue)
+                {
+                    _zkDevice.SetStrCardNumber(request.CardNumber.Value.ToString());
+                }
+
+                _zkDevice.RefreshData(_machineNumber);
+                _zkDevice.EnableDevice(_machineNumber, true);
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _zkDevice.EnableDevice(_machineNumber, true);
+                throw new Exception($"Update user error: {ex.Message}", ex);
+            }
         }
 
         public bool DeleteUser(string enrollNumber)
         {
-            // TODO: Implement user deletion
-            // return _device.SSR_DeleteEnrollData(1, enrollNumber, 12);
-            throw new NotImplementedException("ZKTeco SDK integration pending");
+            try
+            {
+                _zkDevice.EnableDevice(_machineNumber, false);
+
+                // 12 = Tüm kullanıcı verilerini sil (parmak izi, kart, vb.)
+                bool result = _zkDevice.SSR_DeleteEnrollData(_machineNumber, enrollNumber, 12);
+
+                _zkDevice.RefreshData(_machineNumber);
+                _zkDevice.EnableDevice(_machineNumber, true);
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _zkDevice.EnableDevice(_machineNumber, true);
+                throw new Exception($"Delete user error: {ex.Message}", ex);
+            }
         }
 
         public bool ClearAllUsers()
         {
-            // TODO: Implement clear all users
-            // return _device.ClearData(1, 5);
-            throw new NotImplementedException("ZKTeco SDK integration pending");
+            try
+            {
+                _zkDevice.EnableDevice(_machineNumber, false);
+
+                // 5 = Tüm kullanıcı verilerini temizle
+                bool result = _zkDevice.ClearData(_machineNumber, 5);
+
+                _zkDevice.RefreshData(_machineNumber);
+                _zkDevice.EnableDevice(_machineNumber, true);
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _zkDevice.EnableDevice(_machineNumber, true);
+                throw new Exception($"Clear all users error: {ex.Message}", ex);
+            }
         }
 
         #endregion
@@ -197,24 +403,70 @@ namespace ZKTecoApi.Services
 
         public List<AttendanceLogResponse> GetAttendanceLogs(string deviceIp)
         {
-            // TODO: Implement attendance log retrieval
-            // var logs = new List<AttendanceLogResponse>();
-            // _device.ReadGeneralLogData(1);
-            // while (_device.SSR_GetGeneralLogData(1, out string enrollNumber, out int verifyMethod,
-            //        out int inOutMode, out int year, out int month, out int day,
-            //        out int hour, out int minute, out int second, ref int workCode))
-            // {
-            //     logs.Add(new AttendanceLogResponse { ... });
-            // }
-            // return logs;
-            throw new NotImplementedException("ZKTeco SDK integration pending");
+            var logs = new List<AttendanceLogResponse>();
+
+            try
+            {
+                _zkDevice.EnableDevice(_machineNumber, false);
+                _zkDevice.ReadGeneralLogData(_machineNumber);
+
+                string enrollNumber = "";
+                int verifyMethod = 0;
+                int inOutMode = 0;
+                int year = 0, month = 0, day = 0, hour = 0, minute = 0, second = 0;
+                int workCode = 0;
+
+                while (_zkDevice.SSR_GetGeneralLogData(_machineNumber, out enrollNumber,
+                    out verifyMethod, out inOutMode, out year, out month, out day,
+                    out hour, out minute, out second, ref workCode))
+                {
+                    try
+                    {
+                        logs.Add(new AttendanceLogResponse
+                        {
+                            EnrollNumber = enrollNumber,
+                            DateTime = new DateTime(year, month, day, hour, minute, second),
+                            VerifyMethod = verifyMethod,
+                            InOutMode = inOutMode,
+                            WorkCode = workCode,
+                            DeviceIp = deviceIp
+                        });
+                    }
+                    catch
+                    {
+                        // Geçersiz tarih verisi, atla
+                        continue;
+                    }
+                }
+
+                _zkDevice.EnableDevice(_machineNumber, true);
+                return logs;
+            }
+            catch (Exception ex)
+            {
+                _zkDevice.EnableDevice(_machineNumber, true);
+                throw new Exception($"Get attendance logs error: {ex.Message}", ex);
+            }
         }
 
         public bool ClearAttendanceLogs()
         {
-            // TODO: Implement clear attendance logs
-            // return _device.ClearGLog(1);
-            throw new NotImplementedException("ZKTeco SDK integration pending");
+            try
+            {
+                _zkDevice.EnableDevice(_machineNumber, false);
+
+                bool result = _zkDevice.ClearGLog(_machineNumber);
+
+                _zkDevice.RefreshData(_machineNumber);
+                _zkDevice.EnableDevice(_machineNumber, true);
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _zkDevice.EnableDevice(_machineNumber, true);
+                throw new Exception($"Clear attendance logs error: {ex.Message}", ex);
+            }
         }
 
         #endregion
@@ -223,37 +475,27 @@ namespace ZKTecoApi.Services
 
         public bool EnableDevice()
         {
-            // TODO: Implement enable device
-            // return _device.EnableDevice(1, true);
-            throw new NotImplementedException("ZKTeco SDK integration pending");
+            return _zkDevice.EnableDevice(_machineNumber, true);
         }
 
         public bool DisableDevice()
         {
-            // TODO: Implement disable device
-            // return _device.EnableDevice(1, false);
-            throw new NotImplementedException("ZKTeco SDK integration pending");
+            return _zkDevice.EnableDevice(_machineNumber, false);
         }
 
         public bool PowerOff()
         {
-            // TODO: Implement power off
-            // return _device.PowerOffDevice(1);
-            throw new NotImplementedException("ZKTeco SDK integration pending");
+            return _zkDevice.PowerOffDevice(_machineNumber);
         }
 
         public bool Restart()
         {
-            // TODO: Implement restart
-            // return _device.RestartDevice(1);
-            throw new NotImplementedException("ZKTeco SDK integration pending");
+            return _zkDevice.RestartDevice(_machineNumber);
         }
 
         public bool ClearAdministrators()
         {
-            // TODO: Implement clear administrators
-            // return _device.ClearAdministrators(1);
-            throw new NotImplementedException("ZKTeco SDK integration pending");
+            return _zkDevice.ClearAdministrators(_machineNumber);
         }
 
         #endregion
@@ -262,20 +504,76 @@ namespace ZKTecoApi.Services
 
         public bool StartRealtimeEvents(string deviceIp, Action<RealtimeEventResponse> onEventReceived)
         {
-            // TODO: Implement realtime event handling
-            // _device.OnAttTransactionEx += (enrollNumber, verifyMode, inOutMode, year, month, day, hour, minute, second, workCode) =>
-            // {
-            //     var evt = new RealtimeEventResponse { ... };
-            //     onEventReceived?.Invoke(evt);
-            // };
-            // return _device.RegEvent(1, 65535);
-            throw new NotImplementedException("ZKTeco SDK integration pending");
+            try
+            {
+                _zkDevice.OnAttTransactionEx += new _IZKEMEvents_OnAttTransactionExEventHandler(
+                    (string enrollNumber, int attState, int verifyMethod, int year, int month,
+                     int day, int hour, int minute, int second, int workCode) =>
+                    {
+                        try
+                        {
+                            var evt = new RealtimeEventResponse
+                            {
+                                EventType = "Attendance",
+                                EnrollNumber = enrollNumber,
+                                EventTime = new DateTime(year, month, day, hour, minute, second),
+                                VerifyMethod = verifyMethod,
+                                InOutMode = attState,
+                                WorkCode = workCode,
+                                DeviceIp = deviceIp
+                            };
+
+                            onEventReceived?.Invoke(evt);
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Realtime event error: {ex.Message}");
+                        }
+                    });
+
+                // 65535 = Tüm event'leri dinle
+                return _zkDevice.RegEvent(_machineNumber, 65535);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Start realtime events error: {ex.Message}", ex);
+            }
         }
 
         public bool StopRealtimeEvents()
         {
-            // TODO: Implement stop realtime events
-            throw new NotImplementedException("ZKTeco SDK integration pending");
+            try
+            {
+                // Event listener'ı kaldır
+                _zkDevice.OnAttTransactionEx -= null;
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        #endregion
+
+        #region IDisposable
+
+        public void Dispose()
+        {
+            try
+            {
+                Disconnect();
+
+                if (_zkDevice != null)
+                {
+                    Marshal.ReleaseComObject(_zkDevice);
+                    _zkDevice = null;
+                }
+            }
+            catch
+            {
+                // Ignore disposal errors
+            }
         }
 
         #endregion
