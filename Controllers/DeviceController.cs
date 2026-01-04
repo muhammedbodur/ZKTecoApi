@@ -4,6 +4,9 @@ using ZKTecoApi.Services;
 
 namespace ZKTecoApi.Controllers
 {
+    /// <summary>
+    /// ZKTeco cihaz yönetimi ve kontrol işlemleri için endpoint'ler
+    /// </summary>
     [RoutePrefix("api/device")]
     public class DeviceController : ApiController
     {
@@ -15,9 +18,14 @@ namespace ZKTecoApi.Controllers
         }
 
         /// <summary>
-        /// Cihaz durumunu getirir
-        /// GET: api/device/{ip}/status
+        /// Cihazın detaylı durum bilgilerini getirir
         /// </summary>
+        /// <param name="ip">Cihaz IP adresi (örn: 192.168.1.201)</param>
+        /// <param name="port">Cihaz port numarası (varsayılan: 4370)</param>
+        /// <returns>Cihaz durum bilgileri (seri no, firmware, kapasite, kullanıcı/log sayısı vb.)</returns>
+        /// <response code="200">Cihaz bilgileri başarıyla alındı</response>
+        /// <response code="400">Cihaza bağlanılamadı</response>
+        /// <response code="500">Sunucu hatası</response>
         [HttpGet]
         [Route("{ip}/status")]
         public IHttpActionResult GetStatus(string ip, int port = 4370)
@@ -34,9 +42,13 @@ namespace ZKTecoApi.Controllers
         }
 
         /// <summary>
-        /// Cihaz zamanını getirir
-        /// GET: api/device/{ip}/time
+        /// Cihazın sistem zamanını getirir
         /// </summary>
+        /// <param name="ip">Cihaz IP adresi</param>
+        /// <param name="port">Cihaz port numarası (varsayılan: 4370)</param>
+        /// <returns>Cihazın mevcut sistem zamanı</returns>
+        /// <response code="200">Cihaz zamanı başarıyla alındı</response>
+        /// <response code="400">Cihaza bağlanılamadı</response>
         [HttpGet]
         [Route("{ip}/time")]
         public IHttpActionResult GetDeviceTime(string ip, int port = 4370)
@@ -60,9 +72,14 @@ namespace ZKTecoApi.Controllers
         }
 
         /// <summary>
-        /// Cihaz zamanını ayarlar
-        /// POST: api/device/{ip}/time
+        /// Cihazın sistem zamanını ayarlar
         /// </summary>
+        /// <param name="ip">Cihaz IP adresi</param>
+        /// <param name="dateTime">Ayarlanacak tarih ve saat (ISO 8601 format)</param>
+        /// <param name="port">Cihaz port numarası (varsayılan: 4370)</param>
+        /// <returns>İşlem sonucu</returns>
+        /// <response code="200">Cihaz zamanı başarıyla ayarlandı</response>
+        /// <response code="400">Cihaza bağlanılamadı veya geçersiz tarih</response>
         [HttpPost]
         [Route("{ip}/time")]
         public IHttpActionResult SetDeviceTime(string ip, [FromBody] DateTime dateTime, int port = 4370)
@@ -86,9 +103,13 @@ namespace ZKTecoApi.Controllers
         }
 
         /// <summary>
-        /// Cihazı etkinleştirir
-        /// POST: api/device/{ip}/enable
+        /// Cihazı etkinleştirir (kullanıcı etkileşimini açar)
         /// </summary>
+        /// <param name="ip">Cihaz IP adresi</param>
+        /// <param name="port">Cihaz port numarası (varsayılan: 4370)</param>
+        /// <returns>İşlem sonucu</returns>
+        /// <response code="200">Cihaz başarıyla etkinleştirildi</response>
+        /// <response code="400">Cihaza bağlanılamadı</response>
         [HttpPost]
         [Route("{ip}/enable")]
         public IHttpActionResult EnableDevice(string ip, int port = 4370)
@@ -112,9 +133,17 @@ namespace ZKTecoApi.Controllers
         }
 
         /// <summary>
-        /// Cihazı devre dışı bırakır
-        /// POST: api/device/{ip}/disable
+        /// Cihazı devre dışı bırakır (kullanıcı etkileşimini kapatır)
         /// </summary>
+        /// <param name="ip">Cihaz IP adresi</param>
+        /// <param name="port">Cihaz port numarası (varsayılan: 4370)</param>
+        /// <returns>İşlem sonucu</returns>
+        /// <response code="200">Cihaz başarıyla devre dışı bırakıldı</response>
+        /// <response code="400">Cihaza bağlanılamadı</response>
+        /// <remarks>
+        /// Cihaz devre dışı bırakıldığında kullanıcılar parmak izi okutamaz veya kart geçemez.
+        /// Data okuma/yazma işlemleri için cihazın devre dışı bırakılması önerilir.
+        /// </remarks>
         [HttpPost]
         [Route("{ip}/disable")]
         public IHttpActionResult DisableDevice(string ip, int port = 4370)
@@ -139,8 +168,16 @@ namespace ZKTecoApi.Controllers
 
         /// <summary>
         /// Cihazı yeniden başlatır
-        /// POST: api/device/{ip}/restart
         /// </summary>
+        /// <param name="ip">Cihaz IP adresi</param>
+        /// <param name="port">Cihaz port numarası (varsayılan: 4370)</param>
+        /// <returns>İşlem sonucu</returns>
+        /// <response code="200">Cihaz yeniden başlatılıyor</response>
+        /// <response code="400">Cihaza bağlanılamadı</response>
+        /// <remarks>
+        /// Cihaz yeniden başlatıldıktan sonra yaklaşık 30-60 saniye beklemeniz gerekir.
+        /// Yeniden başlatma işlemi sırasında tüm bağlantılar kopacaktır.
+        /// </remarks>
         [HttpPost]
         [Route("{ip}/restart")]
         public IHttpActionResult RestartDevice(string ip, int port = 4370)
@@ -164,9 +201,17 @@ namespace ZKTecoApi.Controllers
         }
 
         /// <summary>
-        /// Cihazı kapatır
-        /// POST: api/device/{ip}/poweroff
+        /// Cihazı kapatır (güç keser)
         /// </summary>
+        /// <param name="ip">Cihaz IP adresi</param>
+        /// <param name="port">Cihaz port numarası (varsayılan: 4370)</param>
+        /// <returns>İşlem sonucu</returns>
+        /// <response code="200">Cihaz kapatılıyor</response>
+        /// <response code="400">Cihaza bağlanılamadı</response>
+        /// <remarks>
+        /// DİKKAT: Bu işlem cihazın gücünü tamamen keser.
+        /// Cihazı tekrar açmak için fiziksel müdahale gerekebilir.
+        /// </remarks>
         [HttpPost]
         [Route("{ip}/poweroff")]
         public IHttpActionResult PowerOffDevice(string ip, int port = 4370)
