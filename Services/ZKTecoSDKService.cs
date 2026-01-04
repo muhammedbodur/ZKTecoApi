@@ -133,9 +133,8 @@ namespace ZKTecoApi.Services
 
         public string GetDeviceModel()
         {
-            string model = "";
-            _zkDevice.GetDeviceInfo(_machineNumber, 1, ref model);
-            return model ?? "Unknown";
+            // Platform bilgisi model olarak kullanılıyor
+            return GetPlatform();
         }
 
         public DateTime GetDeviceTime()
@@ -166,30 +165,30 @@ namespace ZKTecoApi.Services
 
         public int GetUserCapacity()
         {
-            string capacity = "";
-            _zkDevice.GetDeviceInfo(_machineNumber, 4, ref capacity);
-            return int.TryParse(capacity, out int result) ? result : 0;
+            int capacity = 0;
+            _zkDevice.GetDeviceStatus(_machineNumber, 8, ref capacity);
+            return capacity;
         }
 
         public int GetLogCapacity()
         {
-            string capacity = "";
-            _zkDevice.GetDeviceInfo(_machineNumber, 5, ref capacity);
-            return int.TryParse(capacity, out int result) ? result : 0;
+            int capacity = 0;
+            _zkDevice.GetDeviceStatus(_machineNumber, 9, ref capacity);
+            return capacity;
         }
 
         public int GetUserCount()
         {
-            string count = "";
-            _zkDevice.GetDeviceInfo(_machineNumber, 2, ref count);
-            return int.TryParse(count, out int result) ? result : 0;
+            int count = 0;
+            _zkDevice.GetDeviceStatus(_machineNumber, 2, ref count);
+            return count;
         }
 
         public int GetLogCount()
         {
-            string count = "";
-            _zkDevice.GetDeviceInfo(_machineNumber, 8, ref count);
-            return int.TryParse(count, out int result) ? result : 0;
+            int count = 0;
+            _zkDevice.GetDeviceStatus(_machineNumber, 6, ref count);
+            return count;
         }
 
         #endregion
@@ -507,8 +506,8 @@ namespace ZKTecoApi.Services
             try
             {
                 _zkDevice.OnAttTransactionEx += new _IZKEMEvents_OnAttTransactionExEventHandler(
-                    (string enrollNumber, int attState, int verifyMethod, int year, int month,
-                     int day, int hour, int minute, int second, int workCode) =>
+                    (string enrollNumber, int isInValid, int attState, int verifyMethod,
+                     int year, int month, int day, int hour, int minute, int second, int workCode) =>
                     {
                         try
                         {
@@ -520,7 +519,8 @@ namespace ZKTecoApi.Services
                                 VerifyMethod = verifyMethod,
                                 InOutMode = attState,
                                 WorkCode = workCode,
-                                DeviceIp = deviceIp
+                                DeviceIp = deviceIp,
+                                IsValid = isInValid == 0 // 0 = valid, 1 = invalid
                             };
 
                             onEventReceived?.Invoke(evt);
