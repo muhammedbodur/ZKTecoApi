@@ -193,6 +193,7 @@
     <Compile Include="Controllers\AttendanceController.cs" />
     <Compile Include="Controllers\DeviceController.cs" />
     <Compile Include="Controllers\HealthController.cs" />
+    <Compile Include="Controllers\HomeController.cs" />
     <Compile Include="Controllers\RealtimeController.cs" />
     <Compile Include="Controllers\UserController.cs" />
     <Compile Include="DTOs\Request\UserCreateRequest.cs" />
