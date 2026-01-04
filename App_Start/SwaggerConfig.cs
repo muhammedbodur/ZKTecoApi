@@ -3,6 +3,8 @@ using ZKTecoApi;
 using System.IO;
 using System;
 using System.Web;
+using Swashbuckle.Application;
+using System.Net.Http;
 
 [assembly: PreApplicationStartMethod(typeof(SwaggerConfig), "Register")]
 
