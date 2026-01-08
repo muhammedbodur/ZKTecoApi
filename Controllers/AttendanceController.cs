@@ -49,7 +49,7 @@ namespace ZKTecoApi.Controllers
             {
                 if (!_sdkService.Connect(ip, port))
                 {
-                    return BadRequest($"Cihaza bağlanılamadı: {ip}:{port}");
+                    return Ok(new { success = false, message = $"Cihaza bağlanılamadı: {ip}:{port}" });
                 }
 
                 var logs = _sdkService.GetAttendanceLogs(ip);
@@ -84,13 +84,13 @@ namespace ZKTecoApi.Controllers
             {
                 if (!_sdkService.Connect(ip, port))
                 {
-                    return BadRequest($"Cihaza bağlanılamadı: {ip}:{port}");
+                    return Ok(new { success = false, message = $"Cihaza bağlanılamadı: {ip}:{port}" });
                 }
 
                 var result = _sdkService.ClearAttendanceLogs();
                 _sdkService.Disconnect();
 
-                return Ok(new { success = result });
+                return Ok(new { success = result, message = result ? "Yoklama kayıtları silindi" : "Yoklama kayıtları silinemedi" });
             }
             catch (Exception ex)
             {
@@ -114,7 +114,7 @@ namespace ZKTecoApi.Controllers
             {
                 if (!_sdkService.Connect(ip, port))
                 {
-                    return BadRequest($"Cihaza bağlanılamadı: {ip}:{port}");
+                    return Ok(new { success = false, message = $"Cihaza bağlanılamadı: {ip}:{port}" });
                 }
 
                 var count = _sdkService.GetLogCount();

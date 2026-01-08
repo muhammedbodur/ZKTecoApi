@@ -50,7 +50,7 @@ namespace ZKTecoApi.Controllers
             {
                 if (!_sdkService.Connect(ip, port))
                 {
-                    return BadRequest($"Cihaza bağlanılamadı: {ip}:{port}");
+                    return Ok(new { success = false, message = $"Cihaza bağlanılamadı: {ip}:{port}" });
                 }
 
                 var result = _sdkService.StartRealtimeEvents(ip, (eventData) =>
@@ -62,7 +62,7 @@ namespace ZKTecoApi.Controllers
                 if (!result)
                 {
                     _sdkService.Disconnect();
-                    return BadRequest("Realtime event başlatılamadı");
+                    return Ok(new { success = false, message = "Realtime event başlatılamadı" });
                 }
 
                 return Ok(new { success = true, message = $"Realtime events started for {ip}:{port}" });

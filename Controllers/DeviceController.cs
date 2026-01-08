@@ -57,7 +57,7 @@ namespace ZKTecoApi.Controllers
             {
                 if (!_sdkService.Connect(ip, port))
                 {
-                    return BadRequest($"Cihaza bağlanılamadı: {ip}:{port}");
+                    return Ok(new { success = false, message = $"Cihaza bağlanılamadı: {ip}:{port}" });
                 }
 
                 var deviceTime = _sdkService.GetDeviceTime();
@@ -75,26 +75,37 @@ namespace ZKTecoApi.Controllers
         /// Cihazın sistem zamanını ayarlar
         /// </summary>
         /// <param name="ip">Cihaz IP adresi</param>
-        /// <param name="dateTime">Ayarlanacak tarih ve saat (ISO 8601 format)</param>
+        /// <param name="dateTime">Ayarlanacak tarih ve saat (opsiyonel, belirtilmezse Türkiye saati kullanılır)</param>
         /// <param name="port">Cihaz port numarası (varsayılan: 4370)</param>
         /// <returns>İşlem sonucu</returns>
         /// <response code="200">Cihaz zamanı başarıyla ayarlandı</response>
         /// <response code="400">Cihaza bağlanılamadı veya geçersiz tarih</response>
+        /// <remarks>
+        /// dateTime parametresi belirtilmezse, otomatik olarak Türkiye saati (UTC+3) kullanılır.
+        /// Örnek kullanım: POST /api/device/192.168.1.201/time?port=4370&amp;dateTime=2026-01-08T10:54:00
+        /// </remarks>
         [HttpPost]
         [Route("{ip}/time")]
-        public IHttpActionResult SetDeviceTime(string ip, [FromBody] DateTime dateTime, int port = 4370)
+        public IHttpActionResult SetDeviceTime(string ip, DateTime? dateTime = null, int port = 4370)
         {
             try
             {
                 if (!_sdkService.Connect(ip, port))
                 {
-                    return BadRequest($"Cihaza bağlanılamadı: {ip}:{port}");
+                    return Ok(new { success = false, message = $"Cihaza bağlanılamadı: {ip}:{port}" });
                 }
 
-                var result = _sdkService.SetDeviceTime(dateTime);
+                var turkeyTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Turkey Standard Time");
+                var timeToSet = dateTime ?? TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, turkeyTimeZone);
+                
+                var result = _sdkService.SetDeviceTime(timeToSet);
                 _sdkService.Disconnect();
 
-                return Ok(new { success = result });
+                return Ok(new { 
+                    success = result, 
+                    setTime = timeToSet,
+                    message = dateTime.HasValue ? "Belirtilen zaman ayarlandı" : "Türkiye saati otomatik olarak ayarlandı"
+                });
             }
             catch (Exception ex)
             {
@@ -118,13 +129,13 @@ namespace ZKTecoApi.Controllers
             {
                 if (!_sdkService.Connect(ip, port))
                 {
-                    return BadRequest($"Cihaza bağlanılamadı: {ip}:{port}");
+                    return Ok(new { success = false, message = $"Cihaza bağlanılamadı: {ip}:{port}" });
                 }
 
                 var result = _sdkService.EnableDevice();
                 _sdkService.Disconnect();
 
-                return Ok(new { success = result });
+                return Ok(new { success = result, message = result ? "Cihaz etkinleştirildi" : "Cihaz etkinleştirilemedi" });
             }
             catch (Exception ex)
             {
@@ -152,13 +163,13 @@ namespace ZKTecoApi.Controllers
             {
                 if (!_sdkService.Connect(ip, port))
                 {
-                    return BadRequest($"Cihaza bağlanılamadı: {ip}:{port}");
+                    return Ok(new { success = false, message = $"Cihaza bağlanılamadı: {ip}:{port}" });
                 }
 
                 var result = _sdkService.DisableDevice();
                 _sdkService.Disconnect();
 
-                return Ok(new { success = result });
+                return Ok(new { success = result, message = result ? "Cihaz devre dışı bırakıldı" : "Cihaz devre dışı bırakılamadı" });
             }
             catch (Exception ex)
             {
@@ -186,13 +197,13 @@ namespace ZKTecoApi.Controllers
             {
                 if (!_sdkService.Connect(ip, port))
                 {
-                    return BadRequest($"Cihaza bağlanılamadı: {ip}:{port}");
+                    return Ok(new { success = false, message = $"Cihaza bağlanılamadı: {ip}:{port}" });
                 }
 
                 var result = _sdkService.Restart();
                 _sdkService.Disconnect();
 
-                return Ok(new { success = result });
+                return Ok(new { success = result, message = result ? "Cihaz yeniden başlatılıyor" : "Cihaz yeniden başlatılamadı" });
             }
             catch (Exception ex)
             {
@@ -220,13 +231,13 @@ namespace ZKTecoApi.Controllers
             {
                 if (!_sdkService.Connect(ip, port))
                 {
-                    return BadRequest($"Cihaza bağlanılamadı: {ip}:{port}");
+                    return Ok(new { success = false, message = $"Cihaza bağlanılamadı: {ip}:{port}" });
                 }
 
                 var result = _sdkService.PowerOff();
                 _sdkService.Disconnect();
 
-                return Ok(new { success = result });
+                return Ok(new { success = result, message = result ? "Cihaz kapatılıyor" : "Cihaz kapatılamadı" });
             }
             catch (Exception ex)
             {

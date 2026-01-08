@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Text;
 using zkemkeeper;
 using ZKTecoApi.DTOs.Request;
 using ZKTecoApi.DTOs.Response;
@@ -17,6 +18,26 @@ namespace ZKTecoApi.Services
         public ZKTecoSDKService()
         {
             _zkDevice = new CZKEMClass();
+        }
+
+        // ZKTeco SDK'sından gelen string'leri düzelt (encoding sorunu)
+        private string FixEncoding(string input)
+        {
+            if (string.IsNullOrEmpty(input))
+                return input;
+
+            try
+            {
+                // ZKTeco SDK bazı durumlarda ISO-8859-9 (Turkish) encoding kullanıyor
+                // Ama .NET bunu yanlış yorumluyor
+                byte[] bytes = Encoding.GetEncoding("ISO-8859-1").GetBytes(input);
+                return Encoding.GetEncoding("windows-1254").GetString(bytes);
+            }
+            catch
+            {
+                // Encoding dönüşümü başarısız olursa orijinal string'i döndür
+                return input;
+            }
         }
 
         #region Connection Management
@@ -202,30 +223,65 @@ namespace ZKTecoApi.Services
             try
             {
                 _zkDevice.EnableDevice(_machineNumber, false);
-                _zkDevice.ReadAllUserID(_machineNumber);
+                
+                // ReadAllUserID - Kullanıcı okumaya hazırla
+                if (!_zkDevice.ReadAllUserID(_machineNumber))
+                {
+                    _zkDevice.EnableDevice(_machineNumber, true);
+                    return users;
+                }
 
-                string enrollNumber = "";
+                // ZKTecoCtrl gibi: enrollNumber int ve ref kullan
+                int enrollNumber = 0;
                 string name = "";
                 string password = "";
                 int privilege = 0;
-                bool enabled = true;
+                bool enabled = false;
 
-                while (_zkDevice.SSR_GetAllUserInfo(_machineNumber, out enrollNumber, out name,
-                    out password, out privilege, out enabled))
+                int userCount = 0;
+                // GetAllUserInfo metodu - ref kullanarak
+                while (_zkDevice.GetAllUserInfo(_machineNumber, ref enrollNumber, ref name,
+                    ref password, ref privilege, ref enabled))
                 {
-                    long cardNumber = 0;
-                    _zkDevice.GetStrCardNumber(out string cardNumberStr);
-                    long.TryParse(cardNumberStr, out cardNumber);
+                    userCount++;
 
-                    users.Add(new UserInfoResponse
+                    if (enrollNumber > 0)
                     {
-                        EnrollNumber = enrollNumber,
-                        Name = name,
-                        Password = password,
-                        CardNumber = cardNumber > 0 ? cardNumber : (long?)null,
-                        Privilege = privilege,
-                        Enabled = enabled
-                    });
+                        // Her kullanıcı için kart numarasını al
+                        // NOT: GetStrCardNumber SDK'da global bir buffer kullanır
+                        // Bu yüzden her kullanıcı için tekrar GetUserInfo çağırıp sonra GetStrCardNumber çağırmalıyız
+                        string userName = "";
+                        string userPassword = "";
+                        int userPrivilege = 0;
+                        bool userEnabled = false;
+                        
+                        long? cardNumber = null;
+                        
+                        // Kullanıcı bilgilerini tekrar al (bu kart numarasını buffer'a yükler)
+                        if (_zkDevice.GetUserInfo(_machineNumber, enrollNumber, ref userName, ref userPassword, ref userPrivilege, ref userEnabled))
+                        {
+                            string cardNumberStr = "";
+                            if (_zkDevice.GetStrCardNumber(out cardNumberStr))
+                            {
+                                if (!string.IsNullOrEmpty(cardNumberStr) && long.TryParse(cardNumberStr, out long cardNum) && cardNum > 0)
+                                {
+                                    cardNumber = cardNum;
+                                }
+                            }
+                        }
+
+                        users.Add(new UserInfoResponse
+                        {
+                            EnrollNumber = enrollNumber.ToString(),
+                            Name = name?.Trim() ?? "",
+                            Password = password?.Trim() ?? "",
+                            CardNumber = cardNumber,
+                            Privilege = privilege,
+                            Enabled = enabled
+                        });
+                    }
+
+                    if (userCount > 10000) break; // Sonsuz döngü koruması
                 }
 
                 _zkDevice.EnableDevice(_machineNumber, true);
@@ -244,26 +300,37 @@ namespace ZKTecoApi.Services
             {
                 _zkDevice.EnableDevice(_machineNumber, false);
 
+                if (!int.TryParse(enrollNumber, out int numericEnrollNumber))
+                {
+                    _zkDevice.EnableDevice(_machineNumber, true);
+                    return null;
+                }
+
                 string name = "";
                 string password = "";
                 int privilege = 0;
-                bool enabled = true;
+                bool enabled = false;
 
-                if (_zkDevice.SSR_GetUserInfo(_machineNumber, enrollNumber, out name,
-                    out password, out privilege, out enabled))
+                if (_zkDevice.GetUserInfo(_machineNumber, numericEnrollNumber, ref name,
+                    ref password, ref privilege, ref enabled))
                 {
-                    long cardNumber = 0;
-                    _zkDevice.GetStrCardNumber(out string cardNumberStr);
-                    long.TryParse(cardNumberStr, out cardNumber);
+                    string cardNumberStr = "";
+                    _zkDevice.GetStrCardNumber(out cardNumberStr);
+                    
+                    long? cardNumber = null;
+                    if (!string.IsNullOrEmpty(cardNumberStr) && long.TryParse(cardNumberStr, out long cardNum) && cardNum > 0)
+                    {
+                        cardNumber = cardNum;
+                    }
 
                     _zkDevice.EnableDevice(_machineNumber, true);
 
                     return new UserInfoResponse
                     {
-                        EnrollNumber = enrollNumber,
-                        Name = name,
-                        Password = password,
-                        CardNumber = cardNumber > 0 ? cardNumber : (long?)null,
+                        EnrollNumber = numericEnrollNumber.ToString(),
+                        Name = name?.Trim() ?? "",
+                        Password = password?.Trim() ?? "",
+                        CardNumber = cardNumber,
                         Privilege = privilege,
                         Enabled = enabled
                     };
@@ -285,17 +352,25 @@ namespace ZKTecoApi.Services
             {
                 _zkDevice.EnableDevice(_machineNumber, false);
 
-                bool result = _zkDevice.SSR_SetUserInfo(_machineNumber,
-                    request.EnrollNumber,
+                if (!int.TryParse(request.EnrollNumber, out int numericEnrollNumber))
+                {
+                    _zkDevice.EnableDevice(_machineNumber, true);
+                    return false;
+                }
+
+                // Kart numarası varsa önce buffer'a yükle
+                if (request.CardNumber.HasValue && request.CardNumber.Value > 0)
+                {
+                    _zkDevice.SetStrCardNumber(request.CardNumber.Value.ToString());
+                }
+
+                // Sonra kullanıcıyı oluştur (kart numarası buffer'dan alınır)
+                bool result = _zkDevice.SetUserInfo(_machineNumber,
+                    numericEnrollNumber,
                     request.Name,
                     request.Password ?? "",
                     request.Privilege,
                     request.Enabled);
-
-                if (result && request.CardNumber.HasValue)
-                {
-                    _zkDevice.SetStrCardNumber(request.CardNumber.Value.ToString());
-                }
 
                 _zkDevice.RefreshData(_machineNumber);
                 _zkDevice.EnableDevice(_machineNumber, true);
@@ -315,14 +390,20 @@ namespace ZKTecoApi.Services
             {
                 _zkDevice.EnableDevice(_machineNumber, false);
 
+                if (!int.TryParse(enrollNumber, out int numericEnrollNumber))
+                {
+                    _zkDevice.EnableDevice(_machineNumber, true);
+                    return false;
+                }
+
                 // Önce mevcut kullanıcıyı al
                 string existingName = "";
                 string existingPassword = "";
                 int existingPrivilege = 0;
-                bool existingEnabled = true;
+                bool existingEnabled = false;
 
-                if (!_zkDevice.SSR_GetUserInfo(_machineNumber, enrollNumber, out existingName,
-                    out existingPassword, out existingPrivilege, out existingEnabled))
+                if (!_zkDevice.GetUserInfo(_machineNumber, numericEnrollNumber, ref existingName,
+                    ref existingPassword, ref existingPrivilege, ref existingEnabled))
                 {
                     _zkDevice.EnableDevice(_machineNumber, true);
                     return false;
@@ -334,13 +415,15 @@ namespace ZKTecoApi.Services
                 int newPrivilege = request.Privilege ?? existingPrivilege;
                 bool newEnabled = request.Enabled ?? existingEnabled;
 
-                bool result = _zkDevice.SSR_SetUserInfo(_machineNumber,
-                    enrollNumber, newName, newPassword, newPrivilege, newEnabled);
-
-                if (result && request.CardNumber.HasValue)
+                // Kart numarası varsa önce buffer'a yükle
+                if (request.CardNumber.HasValue)
                 {
                     _zkDevice.SetStrCardNumber(request.CardNumber.Value.ToString());
                 }
+
+                // Sonra kullanıcıyı güncelle (kart numarası buffer'dan alınır)
+                bool result = _zkDevice.SetUserInfo(_machineNumber,
+                    numericEnrollNumber, newName, newPassword, newPrivilege, newEnabled);
 
                 _zkDevice.RefreshData(_machineNumber);
                 _zkDevice.EnableDevice(_machineNumber, true);
@@ -407,25 +490,39 @@ namespace ZKTecoApi.Services
             try
             {
                 _zkDevice.EnableDevice(_machineNumber, false);
-                _zkDevice.ReadGeneralLogData(_machineNumber);
+                
+                if (!_zkDevice.ReadGeneralLogData(_machineNumber))
+                {
+                    _zkDevice.EnableDevice(_machineNumber, true);
+                    return logs;
+                }
 
-                string enrollNumber = "";
-                int verifyMethod = 0;
+                // ZKTecoCtrl gibi: enrollNumber int ve ref kullan
+                int enrollNumber = 0;
+                int verifyMode = 0;
                 int inOutMode = 0;
                 int year = 0, month = 0, day = 0, hour = 0, minute = 0, second = 0;
                 int workCode = 0;
+                int reserved = 0;
 
-                while (_zkDevice.SSR_GetGeneralLogData(_machineNumber, out enrollNumber,
-                    out verifyMethod, out inOutMode, out year, out month, out day,
-                    out hour, out minute, out second, ref workCode))
+                // GetGeneralExtLogData kullan - SSR değil!
+                while (_zkDevice.GetGeneralExtLogData(_machineNumber, ref enrollNumber, ref verifyMode, 
+                    ref inOutMode, ref year, ref month, ref day, ref hour, ref minute, ref second, 
+                    ref workCode, ref reserved))
                 {
                     try
                     {
+                        // Geçerli tarih kontrolü
+                        if (year < 2000 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31)
+                            continue;
+
+                        var dateTime = new DateTime(year, month, day, hour, minute, second);
+
                         logs.Add(new AttendanceLogResponse
                         {
-                            EnrollNumber = enrollNumber,
-                            DateTime = new DateTime(year, month, day, hour, minute, second),
-                            VerifyMethod = verifyMethod,
+                            EnrollNumber = enrollNumber > 0 ? enrollNumber.ToString() : "",
+                            DateTime = dateTime,
+                            VerifyMethod = verifyMode,
                             InOutMode = inOutMode,
                             WorkCode = workCode,
                             DeviceIp = deviceIp

@@ -13,8 +13,10 @@ namespace ZKTecoApi
     {
         protected void Application_Start()
         {
-            AreaRegistration.RegisterAllAreas();
+            // Web API routing'i MVC'den ÖNCE kayıt et (kritik!)
             GlobalConfiguration.Configure(WebApiConfig.Register);
+            
+            AreaRegistration.RegisterAllAreas();
             FilterConfig.RegisterGlobalFilters(GlobalFilters.Filters);
             RouteConfig.RegisterRoutes(RouteTable.Routes);
             BundleConfig.RegisterBundles(BundleTable.Bundles);
