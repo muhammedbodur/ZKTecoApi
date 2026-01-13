@@ -449,8 +449,21 @@ namespace ZKTecoApi.Services
                     return false;
                 }
 
-                // 12 = Tüm kullanıcı verilerini sil (parmak izi, kart, vb.)
-                bool result = _zkDevice.SSR_DeleteEnrollData(_machineNumber, numericEnrollNumber.ToString(), 12);
+                // Önce kullanıcının var olup olmadığını kontrol et
+                string name = "";
+                string password = "";
+                int privilege = 0;
+                bool enabled = false;
+
+                if (!_zkDevice.GetUserInfo(_machineNumber, numericEnrollNumber, ref name, ref password, ref privilege, ref enabled))
+                {
+                    _zkDevice.EnableDevice(_machineNumber, true);
+                    return false; // Kullanıcı bulunamadı
+                }
+
+                // Kullanıcıyı sil - DeleteEnrollData kullan (SSR yerine)
+                // Parametreler: machineNumber, enrollNumber(string), backupMachineNumber, backupNumber(12=all)
+                bool result = _zkDevice.DeleteEnrollData(_machineNumber, numericEnrollNumber.ToString(), _machineNumber, 12);
 
                 _zkDevice.RefreshData(_machineNumber);
                 _zkDevice.EnableDevice(_machineNumber, true);
