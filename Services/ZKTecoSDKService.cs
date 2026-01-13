@@ -443,8 +443,14 @@ namespace ZKTecoApi.Services
             {
                 _zkDevice.EnableDevice(_machineNumber, false);
 
+                if (!int.TryParse(enrollNumber, out int numericEnrollNumber))
+                {
+                    _zkDevice.EnableDevice(_machineNumber, true);
+                    return false;
+                }
+
                 // 12 = Tüm kullanıcı verilerini sil (parmak izi, kart, vb.)
-                bool result = _zkDevice.SSR_DeleteEnrollData(_machineNumber, enrollNumber, 12);
+                bool result = _zkDevice.SSR_DeleteEnrollData(_machineNumber, numericEnrollNumber.ToString(), 12);
 
                 _zkDevice.RefreshData(_machineNumber);
                 _zkDevice.EnableDevice(_machineNumber, true);
